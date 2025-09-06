@@ -1,3 +1,15 @@
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/basic-features/typescript for more information.
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+}
+module.exports = nextConfig
+
 {
   "name": "shoppingsmart",
   "version": "1.0.0",
@@ -6,35 +18,74 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-import type { Config } from "tailwindcss";
-const config: Config = {
-  content: [
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",/** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "framer-motion": "11.3.31",
+    "lucide-react": "0.447.0",
+    "next": "14.2.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "autoprefixer": "10.4.19",
+    "postcss": "8.4.39",
+    "tailwindcss": "3.4.10",
+    "typescript": "5.4.5",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.5"
+  }
 }
-module.exports = nextConfig
-
-    "./components/**/*.{js,ts,jsx,tsx,mdx}",
-  ],{
-  "compilerOptions": {
-    "target": "ES2020",
-    "lib": [
-      "dom",
-      "dom.iterable",/// <reference types="next" />
-/// <reference types="next/image-types/global" />
-
-// NOTE: This file should not be edited
-// see https://nextjs.org/docs/basic-features/typescript for more information.
-
-      "esnext"
-    ],module.exports = {
+module.exports = {
   plugins: {
     tailwindcss: {},
     autoprefixer: {},
   },
-}
+# ShoppingSmart (MVP)
 
+Colourful, mobile‑first weekly meal planner + categorised shopping lists + demo price check.
+
+## Run locally
+1. `npm install`
+2. `npm run dev`
+3. Open http://localhost:3000
+
+## Deploy to Vercel
+1. Go to https://vercel.com/new
+2. Click **Import Project** → **Upload** and drag this folder (or the ZIP)
+3. Framework: **Next.js** (auto-detected). Click **Deploy**.
+
+## Optional: RapidAPI keys for live prices (Woolworths/Coles)
+In Vercel → **Settings → Environment Variables** add:
+- `NEXT_PUBLIC_RAPIDAPI_KEY`: your RapidAPI key
+
+Then replace the `lookupPrices` function with real fetches.
+
+## Notes
+- TailwindCSS is preconfigured
+- Component uses `framer-motion` and `lucide-react`
+- This is a demo; prices are mocked for now
+
+
+import type { Config } from "tailwindcss";
+const config: Config = {
+  content: [
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  theme: { extend: {} },
+  plugins: [],
+};
+export default config;
+
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
@@ -60,27 +111,316 @@ module.exports = nextConfig
   "exclude": [
     "node_modules"
   ]
-}
-  theme: { extend: {} },
-  plugins: [],
-};
-export default config;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-    "lint": "next lint"
-  },
-  "dependencies": {
-    "framer-motion": "11.3.31",
-    "lucide-react": "0.447.0",
-    "next": "14.2.5",
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
-  },
-  "devDependencies": {
-    "autoprefixer": "10.4.19",
-    "postcss": "8.4.39",
-    "tailwindcss": "3.4.10",
-    "typescript": "5.4.5",
-    "eslint": "8.57.0",
-    "eslint-config-next": "14.2.5"
+:root {
+  --background: #ffffff;
+}
+
+html, body {
+  height: 100%;
+  background: linear-gradient(to bottom, #f5d0fe, #ffffff, #e0f2fe);
+}
+
+
+import "./globals.css";
+
+export const metadata = {
+  title: "ShoppingSmart",
+  description: "Plan meals • Build lists • Compare prices",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body className="min-h-screen">
+        {children}
+      </body>
+    </html>
+  );
+}
+
+
+'use client';
+import React, { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Search, ShoppingCart, Calendar, Plus, Trash2, User, Sparkles } from 'lucide-react';
+
+const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"] as const;
+type Day = typeof days[number];
+
+type ListItem = { id: string; name: string; qty: number; note: string; price: number | null };
+type Lists = Record<string, ListItem[]>;
+
+const listSections: { key: string; label: string; color: string }[] = [
+  { key: "meals", label: "Food for meals", color:"from-amber-200 to-amber-100" },
+  { key: "meat", label: "Meat", color:"from-rose-200 to-rose-100" },
+  { key: "veg", label: "Veg", color:"from-emerald-200 to-emerald-100" },
+  { key: "fruit", label: "Fruit", color:"from-orange-200 to-orange-100" },
+  { key: "extras", label: "Extras", color:"from-indigo-200 to-indigo-100" },
+];
+
+async function lookupPrices(query: string) {
+  if (!query) return [] as {store:string; name:string; price:number; unit:string; url:string}[];
+  await new Promise((r) => setTimeout(r, 400));
+  const base = query.trim();
+  const prices = [
+    { store: "Woolworths", price: 3.40, unit: "ea" },
+    { store: "Coles", price: 3.50, unit: "ea" },
+    { store: "ALDI", price: 3.20, unit: "ea" },
+  ];
+  return prices.map((p)=>({ ...p, name: base, url: "#" }));
+}
+
+export default function Page() {
+  const [week, setWeek] = useState<Record<Day, { meal: string; who: string }>>(
+    Object.fromEntries(days.map((d) => [d, { meal: "", who: "" }])) as Record<Day, {meal:string; who:string}>
+  );
+  const [lists, setLists] = useState<Lists>(
+    Object.fromEntries(listSections.map((s) => [s.key, [] as ListItem[]])) as Lists
+  );
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const weekPlanned = useMemo(
+    () => days.every((d) => week[d].meal.trim().length > 0),
+    [week]
+  );
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const r = await lookupPrices(q);
+      setResults(r);
+    } finally {
+      setLoading(false);
+    }
   }
+
+  function addItem(sectionKey: string, name: string, price: number | null = null) {
+    if (!name) return;
+    setLists((prev) => ({
+      ...prev,
+      [sectionKey]: [
+        ...prev[sectionKey],
+        { id: crypto.randomUUID(), name, qty: 1, note: "", price },
+      ],
+    }));
+  }
+
+  function removeItem(sectionKey: string, id: string) {
+    setLists((prev) => ({
+      ...prev,
+      [sectionKey]: prev[sectionKey].filter((i) => i.id !== id),
+    }));
+  }
+
+  const estTotal = Object.values(lists)
+    .flat()
+    .reduce((sum, i) => sum + (i.price || 0) * (i.qty || 1), 0);
+
+  return (
+    <div className="min-h-screen">
+      {/* Header */}
+      <header className="sticky top-0 z-30 backdrop-blur bg-white/70 border-b">
+        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-sky-500 text-white shadow-sm">
+              <ShoppingCart className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold">ShoppingSmart</h1>
+              <p className="text-xs text-gray-600 -mt-0.5">Plan meals • Build lists • Compare prices</p>
+            </div>
+          </div>
+          <div className="hidden sm:flex items-center gap-2 text-xs text-gray-600">
+            <Sparkles className="h-4 w-4"/> Mobile‑friendly demo
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
+        {/* Planner & Search */}
+        <section className="grid lg:grid-cols-3 gap-6">
+          {/* Week planner */}
+          <div className="lg:col-span-2">
+            <Card className="bg-white/90">
+              <div className="flex items-center gap-2 mb-4"><Calendar className="h-5 w-5"/><h2 className="font-semibold">Weekly meals</h2></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {days.map((d) => (
+                  <div key={d} className="rounded-2xl border p-3 bg-gradient-to-br from-white to-gray-50">
+                    <div className="text-xs text-gray-500 mb-1">{d}</div>
+                    <input
+                      placeholder="Meal (e.g., Spag bol)"
+                      className="w-full rounded-xl border px-3 py-2 mb-2 focus:ring-2 focus:ring-fuchsia-300 outline-none"
+                      value={week[d].meal}
+                      onChange={(e) => setWeek({ ...week, [d]: { ...week[d], meal: e.target.value } })}
+                    />
+                    <div className="relative">
+                      <User className="h-3.5 w-3.5 text-gray-400 absolute left-2 top-2.5"/>
+                      <input
+                        placeholder="Who's cooking? (optional)"
+                        className="w-full rounded-xl border pl-8 pr-3 py-2 focus:ring-2 focus:ring-sky-300 outline-none"
+                        value={week[d].who}
+                        onChange={(e) => setWeek({ ...week, [d]: { ...week[d], who: e.target.value } })}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 text-xs text-gray-600">
+                {weekPlanned ? "Nice! Every day has a plan." : "Tip: Fill all days to keep shopping focused."}
+              </div>
+            </Card>
+          </div>
+
+          {/* Price search */}
+          <div>
+            <Card className="bg-white/90">
+              <div className="flex items-center gap-2 mb-2"><Search className="h-5 w-5"/><h2 className="font-semibold">Quick price check</h2></div>
+              <form onSubmit={handleSearch} className="flex items-center gap-2">
+                <input
+                  className="w-full rounded-xl border px-3 py-2 focus:ring-2 focus:ring-sky-300 outline-none"
+                  placeholder="Search an item (e.g., bananas)"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
+                <button className="rounded-xl px-3 py-2 border bg-gradient-to-br from-sky-500 to-fuchsia-500 text-white disabled:opacity-60" disabled={loading}>
+                  {loading ? "..." : "Go"}
+                </button>
+              </form>
+              <div className="mt-3 space-y-2">
+                {results.map((r, idx) => (
+                  <motion.div key={idx} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between rounded-xl border p-2 bg-white">
+                    <div>
+                      <div className="text-sm font-medium">{r.name}</div>
+                      <div className="text-xs text-gray-600">{r.store} · {r.unit}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold">${r.price.toFixed(2)}</div>
+                      <button
+                        className="rounded-lg border px-2 py-1 text-xs bg-gradient-to-br from-amber-400 to-amber-500 text-white"
+                        onClick={() => addItem("extras", `${r.name} (${r.store})`, r.price)}
+                      >Add</button>
+                    </div>
+                  </motion.div>
+                ))}
+                {results.length === 0 && (
+                  <div className="text-xs text-gray-500">Try searching “milk”, “bananas”, or “mince”.</div>
+                )}
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                Demo prices only. Hook up Coles/Woolworths later; ALDI is manual for now.
+              </div>
+            </Card>
+          </div>
+        </section>
+
+        {/* Lists */}
+        <section className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {listSections.map((s) => (
+            <Card key={s.key} className={`bg-gradient-to-b ${s.color}`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-sm">{s.label}</h3>
+                <button
+                  className="text-xs rounded-lg border px-2 py-1 flex items-center gap-1 bg-white/60 hover:bg-white"
+                  onClick={() => {
+                    const name = prompt(`Add item to ${s.label}`);
+                    if (name) addItem(s.key, name);
+                  }}
+                ><Plus className="h-3 w-3"/>Add</button>
+              </div>
+              <div className="space-y-2">
+                {lists[s.key].map((i) => (
+                  <div key={i.id} className="rounded-xl border p-2 bg-white/90">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium">{i.name}</div>
+                      <button className="text-gray-500 hover:text-red-600" onClick={() => removeItem(s.key, i.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-1 grid grid-cols-3 gap-2 text-xs items-center">
+                      <label className="flex items-center gap-1">Qty
+                        <input type="number" min={1} value={i.qty} className="w-16 rounded border px-2 py-1"
+                          onChange={(e) => setLists((prev) => ({
+                            ...prev,
+                            [s.key]: prev[s.key].map((x) => x.id === i.id ? { ...x, qty: Number(e.target.value) } : x)
+                          }))}
+                        />
+                      </label>
+                      <label className="flex items-center gap-1">Price
+                        <input type="number" step="0.01" value={i.price ?? ""} placeholder="$"
+                          className="w-20 rounded border px-2 py-1"
+                          onChange={(e) => setLists((prev) => ({
+                            ...prev,
+                            [s.key]: prev[s.key].map((x) => x.id === i.id ? { ...x, price: e.target.value === "" ? null : Number(e.target.value) } : x)
+                          }))}
+                        />
+                      </label>
+                      <input
+                        placeholder="Note (brand, size, etc.)"
+                        className="col-span-3 md:col-span-1 rounded border px-2 py-1"
+                        value={i.note}
+                        onChange={(e) => setLists((prev) => ({
+                          ...prev,
+                          [s.key]: prev[s.key].map((x) => x.id === i.id ? { ...x, note: e.target.value } : x)
+                        }))}
+                      />
+                    </div>
+                  </div>
+                ))}
+                {lists[s.key].length === 0 && (
+                  <div className="text-xs text-gray-600">No items yet.</div>
+                )}
+              </div>
+            </Card>
+          ))}
+        </section>
+
+        {/* Sticky mobile total */}
+        <div className="lg:hidden sticky bottom-4 z-20 mx-auto max-w-md">
+          <div className="mx-4 rounded-2xl shadow-lg border bg-white p-4 flex items-center justify-between">
+            <span className="text-sm text-gray-600">Estimated total</span>
+            <span className="text-lg font-bold">${estTotal.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Desktop total */}
+        <div className="hidden lg:flex items-center justify-between rounded-2xl border p-4 bg-white">
+          <div className="text-sm text-gray-600">Estimated total (from entered prices):</div>
+          <div className="text-xl font-bold">${estTotal.toFixed(2)}</div>
+        </div>
+
+        {/* Next steps note */}
+        <p className="text-xs text-gray-500">Next: add login & sync (Supabase), export/print list, and real AU supermarket prices.</p>
+      </main>
+
+      {/* Floating add button (mobile shortcut to Extras) */}
+      <button
+        className="lg:hidden fixed bottom-20 right-4 p-4 rounded-full shadow-lg bg-gradient-to-br from-sky-500 to-fuchsia-500 text-white"
+        onClick={() => {
+          const name = prompt("Quick add to Extras");
+          if (name) addItem("extras", name);
+        }}
+        aria-label="Quick add"
+      >
+        <Plus className="h-5 w-5"/>
+      </button>
+    </div>
+  );
+}
+
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-2xl border p-4 shadow-sm ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+}
 }
